@@ -35,14 +35,8 @@ from netsapiens_api_client import NetsapiensAuthToken, NetsapiensRefreshToken
 log = logging.getLogger(__name__)
 
 
-def transform_to_netsapiens_api_credentials(response: requests.Response) -> NetsapiensAPICredentials:
-    data = response.json()
-    credentials_count = data.get("count")
-    credentials_list = data.get("results")
-    if credentials_count == 0:
-        raise Exception(f"No active credentials found from url='{response.request.url}'")
-
-    return NetsapiensAPICredentials(**credentials_list[0])
+def transform_to_bytes(response: requests.Response) -> bytes:
+    return response.content
 
 
 def transform_to_call_transcript(response: requests.Response) -> List[CallTranscript]:
@@ -63,6 +57,16 @@ def transform_to_call_outcome_reason(response: requests.Response) -> CallOutcome
 
 def transform_to_call_purpose(response: requests.Response) -> CallPurpose:
     return CallPurpose(**response.json())
+
+
+def transform_to_netsapiens_api_credentials(response: requests.Response) -> NetsapiensAPICredentials:
+    data = response.json()
+    credentials_count = data.get("count")
+    credentials_list = data.get("results")
+    if credentials_count == 0:
+        raise Exception(f"No active credentials found from url='{response.request.url}'")
+
+    return NetsapiensAPICredentials(**credentials_list[0])
 
 
 def transform_to_telecom_caller_name_info(response: requests.Response) -> TelecomCallerNameInfo:
@@ -340,6 +344,7 @@ class PeerlogicAPIClient(APIClient):
         response = session.get(url=url)
         return response
 
+    @extract_and_transform(transform_to_bytes)
     @requires_auth
     def get_call_audio_wave_file(self, call_id: str, call_audio_id: str, session: requests.Session = None) -> requests.Response:
         call_audio_data = self.get_call_audio(call_id, call_audio_id).json()
