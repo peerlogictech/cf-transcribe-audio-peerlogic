@@ -1,0 +1,34 @@
+---
+steps:
+  - id: "Lay down ENVFILE value as file"
+    name: "ubuntu"
+    entrypoint: "bash"
+    args:
+      - '-c'
+      - |
+        echo $${ENVFILE} > /workspace/deployment/${PROJECT_ID}.env
+    secretEnv: ['ENVFILE']
+  - id: Copy requirements.txt from root of directory to src for cf to see
+    name: "ubuntu"
+    entrypoint: "cp"
+    args:
+      [
+        "/workspace/requirements.txt",
+        "/workspace/src/requirements.txt",
+      ]
+    timeout: "1600s"
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    args: ["./deployment/deploy-http.sh"]
+    waitFor: ["-"]
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    args: ["./deployment/deploy-pubsub.sh"]
+    waitFor: ["-"]
+    env:
+      - 'PROJECT_ID=$PROJECT_ID'
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_NUMBER}/secrets/cf-transcribe-audio-env/versions/latest
+      env: 'ENVFILE'

@@ -1,0 +1,21 @@
+[tool.black]
+line-length = 160
+target-version = ["py39"]
+# single quotes are required for this config file - do not change to double quotes
+exclude = '''
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+    | env
+  )/
+)
+'''

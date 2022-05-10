@@ -1,0 +1,18 @@
+{
+  "eventType": "google.pubsub.topic.publish",
+  "resource": { 
+    "service": "pubsub.googleapis.com", 
+    "name": "projects/peerlogic-api-dev/topics/test-dev-cf_transcribe_audio-ana",
+    "type": "type.googleapis.com/google.pubsub.v1.PubsubMessage"
+  },
+  "eventId": "3691395608286161",
+  "timestamp": "2022-01-21T20:53:35.121Z",
+  "data": {
+    "data": "__DATA_BASE64_PLACEHOLDER__",
+    "attributes": {
+      "call_id": "6fAoVoxkfCenkm2K6ejYGU"
+    },
+    "messageId": "test_message_1",
+    "publishTime": "2022-01-27T20:53:35.121Z"
+  }
+}
