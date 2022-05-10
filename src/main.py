@@ -89,7 +89,7 @@ def transcribe_audio_pubsub(event, context):
 
     # Get Wavfile
     log.info(f"Getting the call audio partials for audio_partial_id='{audio_partial_id}'")
-    call_audio_partial_file = peerlogic_api_client.get_call_audio_partial_wavfile(call_id, partial_id, audio_partial_id)
+    call_audio_partial_file = peerlogic_api_client.get_call_audio_partial_wav_file(call_id, partial_id, audio_partial_id)
     log.info(f"Got the call audio partial wavefile in memory for call_id='{call_id}' partial_id='{partial_id}' audio_partial_id='{audio_partial_id}")
 
     log.info(f"Saving file to tmp directory")
