@@ -95,6 +95,5 @@ Run `gcloud init`.
 
 5. Create an environment file  `./deployment/<PROJECT_ID>.env` with the given project id.
    * Escape any funny characters in your `./deployment/<PROJECT_ID>.env` file that bash doesn't like with " " around the value after the `=` sign.
-   * Lay down ./deployment/peerlogic-api-dev.env from [1Password: cf-transcribe-audio-peerlogic dev .env](https://start.1password.com/open/i?a=P3RU52IFYBEH3GKEDF2UBYENBQ&v=vpraap47l6wamzclmiyonzzfw4&i=ymljh6lpq5hrtikxg6k76rrai4&h=my.1password.com).
-   * \# TODO: Create stage and prod and 1Password links.
+   * Lay down ./deployment/peerlogic-api-dev.env
 6. Uncomment all lines in this file if running for the first time `./deployment/gcloud_deploy.bash` and then run it from the root of this repository.
