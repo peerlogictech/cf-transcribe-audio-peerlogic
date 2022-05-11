@@ -35,7 +35,7 @@ Check the complete tutorial [here](https://medium.com/@ivam.santos/how-to-develo
 ## 3. Run and test the app locally
 
 ### 3.0 Place .env files
-Create scripts/.env from deployments/.envexample.
+Create scripts/.env from deployment/.envexample.
 
 ### 3.1 Testing the pub/sub example
 
