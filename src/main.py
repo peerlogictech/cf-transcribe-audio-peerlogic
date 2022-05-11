@@ -35,7 +35,7 @@ class AudioReady(BaseModel):
     audio_partial_id: str
 
 
-def transcribe_audio_http(request):
+def transcribe_audio_peerlogic_http(request):
     """HTTP Cloud Function.
     Args:
         request (flask.Request): The request object.
@@ -51,7 +51,7 @@ def transcribe_audio_http(request):
     return f"Hello, {subject}!"
 
 
-def transcribe_audio_pubsub(event, context):
+def transcribe_audio_peerlogic_pubsub(event, context):
     """Background Cloud Function to be triggered by Pub/Sub.
     Args:
          event (dict):  The dictionary with data specific to this type of

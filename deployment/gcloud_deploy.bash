@@ -2,7 +2,7 @@
 set -x #echo on
 
 # 1. gcloud init
-# 2. run as ./deployment/gcloud_deploy.bash from the root of cf-transcribe-audio repo
+# 2. run as ./deployment/gcloud_deploy.bash from the root of cf-transcribe-audio-peerlogic repo
 
 PROJECT_ID=$(gcloud config list --format='value(core.project)')
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
@@ -59,15 +59,15 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
       --member="serviceAccount:${LOCAL_DEVELOPMENT_SERVICE_ACCOUNT}" \
       --role="roles/speech.client"
 
-echo "${textgreen}Adding cf-transcribe-audio-env Secret${textreset}"
-gcloud secrets create cf-transcribe-audio-env --data-file=$ENV_FILE
+echo "${textgreen}Adding cf-transcribe-audio-peerlogic-env Secret${textreset}"
+gcloud secrets create cf-transcribe-audio-peerlogic-env --data-file=$ENV_FILE
 
 
 if  [[ "$PROJECT_ID" ==  *"dev" ]]; then
       echo "${textgreen}Creating cloud build trigger using development branch${textreset}"
       gcloud beta builds triggers create github \
-      --name="cf-transcribe-audio-dev" \
-      --repo-name="cf-transcribe-audio" \
+      --name="cf-transcribe-audio-peerlogic-dev" \
+      --repo-name="cf-transcribe-audio-peerlogic" \
       --repo-owner=peerlogictech \
       --branch-pattern="^development$" \
       --build-config="deployment/cloudbuild.yaml"
@@ -76,16 +76,16 @@ fi
 if [[ "$PROJECT_ID" ==  *"stage" ]]; then
       echo "${textgreen}Creating cloud build trigger using hotfix/ branch prefix${textreset}"
       gcloud beta builds triggers create github \
-      --name="cf-transcribe-audio-hotfixes" \
-      --repo-name=cf-transcribe-audio \
+      --name="cf-transcribe-audio-peerlogic-hotfixes" \
+      --repo-name=cf-transcribe-audio-peerlogic \
       --repo-owner=peerlogictech \
       --branch-pattern="^hotfix/.*$" \
       --build-config="deployment/cloudbuild.yaml"
 
       echo "${textgreen}Creating cloud build trigger using tags${textreset}"
       gcloud beta builds triggers create github \
-      --name="cf-transcribe-audio-releases" \
-      --repo-name=cf-transcribe-audio \
+      --name="cf-transcribe-audio-peerlogic-releases" \
+      --repo-name=cf-transcribe-audio-peerlogic \
       --repo-owner=peerlogictech \
       --tag-pattern="^.*$" \
       --build-config="deployment/cloudbuild.yaml"
@@ -94,8 +94,8 @@ fi
 if [[ "$PROJECT_ID" ==  *"prod" ]]; then
       echo "${textgreen}Creating cloud build trigger using main branch${textreset}"
       gcloud beta builds triggers create github \
-      --name="cf-transcribe-audio-prod" \
-      --repo-name=cf-transcribe-audio \
+      --name="cf-transcribe-audio-peerlogic-prod" \
+      --repo-name=cf-transcribe-audio-peerlogic \
       --repo-owner=peerlogictech \
       --branch-pattern="^main$" \
       --build-config="deployment/cloudbuild.yaml"

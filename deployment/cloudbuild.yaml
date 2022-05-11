@@ -30,5 +30,5 @@ steps:
 
 availableSecrets:
   secretManager:
-    - versionName: projects/${PROJECT_NUMBER}/secrets/cf-transcribe-audio-env/versions/latest
+    - versionName: projects/${PROJECT_NUMBER}/secrets/cf-transcribe-audio-peerlogic-env/versions/latest
       env: 'ENVFILE'

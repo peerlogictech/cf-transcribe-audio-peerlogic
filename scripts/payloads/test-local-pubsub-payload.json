@@ -2,7 +2,7 @@
   "eventType": "google.pubsub.topic.publish",
   "resource": { 
     "service": "pubsub.googleapis.com", 
-    "name": "projects/peerlogic-api-dev/topics/test-dev-cf_transcribe_audio-ana",
+    "name": "projects/peerlogic-api-dev/topics/test-dev-cf_transcribe_audio_peerlogic-ana",
     "type": "type.googleapis.com/google.pubsub.v1.PubsubMessage"
   },
   "eventId": "3691395608286161",
