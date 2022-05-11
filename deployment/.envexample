@@ -1,5 +1,5 @@
-BUCKET_AUDIO_PCM_ENCODED=peerlogic-audio-pcm-encoded-your-name-here
-BUCKET_GOOGLE_SPEECH_TO_TEXT_RAW_EXTRACT=peerlogic-goog-speech-to-text-raw-extract-your-name-here
+BUCKET_AUDIO_PCM_ENCODED=test-peerlogic-audio-pcm-encoded-your-name-here
+BUCKET_GOOGLE_SPEECH_TO_TEXT_RAW_EXTRACT=test-peerlogic-goog-speech-to-text-raw-extract-your-name-here
 
 PEERLOGIC_API_URL=http://localhost:8000/api
 PEERLOGIC_API_USERNAME=
