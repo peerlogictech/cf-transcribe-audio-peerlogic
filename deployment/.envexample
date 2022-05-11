@@ -1,5 +1,5 @@
 BUCKET_AUDIO_PCM_ENCODED=test-peerlogic-dev-api-audio-pcm-encoded-{your_name_here}-local
-BUCKET_SPEECH_TO_TEXT_RAW_EXTRACT=test-peerlogic-dev-api-speech-to-text-raw-extract-{your_name_here}-local
+BUCKET_SPEECH_TO_TEXT_RAW_EXTRACT=test-peerlogic-dev-api-speech-to-text-peerlogic-raw-extract-{your_name_here}-local
 
 PEERLOGIC_API_URL=http://localhost:8000/api
 PEERLOGIC_API_USERNAME=
@@ -12,4 +12,4 @@ FUNCTION_NAME_PUBSUB=transcribe_audio_peerlogic_pubsub
 FUNCTION_PORT_PUBSUB=5001
 
 PROJECT_ID=peerlogic-api-dev
-PUBSUB_TOPIC=test-dev-transcribe_audio_peerlogic-{your_name_here}
+PUBSUB_TOPIC=test-dev-transcribe_audio_peerlogic-{your_name_here}-local
