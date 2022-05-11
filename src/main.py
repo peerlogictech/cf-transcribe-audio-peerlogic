@@ -107,19 +107,20 @@ def transcribe_audio_peerlogic_pubsub(event, context):
     log.info(f"Got sample rate of wavefile to pass as Speech To Text arguments")
 
     # Processing:
-    log.info("Converting in memory wavefile to pcm")
-    pcm_file_path, _ = wav_codec_to_pcm_s16le(downloaded_path)
-    log.info("Converted in memory wavefile to pcm")
+    log.info(f"NOT YET IMPLEMENTED. DEVELOPMENT IN PROGRESS. THIS IS FINE. DO NOT BE ALARMED.")
+    # log.info("Converting in memory wavefile to pcm")
+    # pcm_file_path, _ = wav_codec_to_pcm_s16le(downloaded_path)
+    # log.info("Converted in memory wavefile to pcm")
 
-    # PCM is still wav extension: https://trac.ffmpeg.org/wiki/audio%20types
-    log.info(f"Saving local pcm encoded file {partial_id}.wav to bucket {BUCKET_OUTPUT_AUDIO_PCM_ENCODED}")
-    pcm_file_gs_uri = upload_file_to_bucket(f"{partial_id}.wav", pcm_file_path, bucket_name=BUCKET_OUTPUT_AUDIO_PCM_ENCODED)
-    log.info(f"Saved local pcm encoded file to bucket {BUCKET_OUTPUT_AUDIO_PCM_ENCODED}")
+    # # PCM is still wav extension: https://trac.ffmpeg.org/wiki/audio%20types
+    # log.info(f"Saving local pcm encoded file {partial_id}.wav to bucket {BUCKET_OUTPUT_AUDIO_PCM_ENCODED}")
+    # pcm_file_gs_uri = upload_file_to_bucket(f"{partial_id}.wav", pcm_file_path, bucket_name=BUCKET_OUTPUT_AUDIO_PCM_ENCODED)
+    # log.info(f"Saved local pcm encoded file to bucket {BUCKET_OUTPUT_AUDIO_PCM_ENCODED}")
 
-    # Transcribe and specify destination for output using call partial id
-    destination_uri = f"gs://{BUCKET_OUTPUT_RAW_EXTRACT}/{call_id}-{partial_id}-{audio_partial_id}.json"
-    log.info(f"Beginning long-running transcription of pcm encoded wave file using Google Speech to Text.")
-    transcribe_model_selection(pcm_file_gs_uri, destination_uri, sample_rate_hertz=sample_rate)
-    # TODO: See if timeouts mean failure and this will reprocess from dead-letter queue
-    # Otherwise, figure out how to not make this blocking
-    log.info(f"Finished calling long-running transcription of pcm encoded file using Google Speech to Text with destination uri: {destination_uri}")
+    # # Transcribe and specify destination for output using call partial id
+    # destination_uri = f"gs://{BUCKET_OUTPUT_RAW_EXTRACT}/{call_id}-{partial_id}-{audio_partial_id}.json"
+    # log.info(f"Beginning long-running transcription of pcm encoded wave file using Google Speech to Text.")
+    # transcribe_model_selection(pcm_file_gs_uri, destination_uri, sample_rate_hertz=sample_rate)
+    # # TODO: See if timeouts mean failure and this will reprocess from dead-letter queue
+    # # Otherwise, figure out how to not make this blocking
+    # log.info(f"Finished calling long-running transcription of pcm encoded file using Google Speech to Text with destination uri: {destination_uri}")
