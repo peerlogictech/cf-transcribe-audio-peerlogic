@@ -17,11 +17,12 @@ steps:
         "/workspace/src/requirements.txt",
       ]
     timeout: "1600s"
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    args: ["./deployment/deploy-http.sh"]
-    waitFor: ["-"]
-    env:
-      - 'PROJECT_ID=$PROJECT_ID'
+  # Removed for the time being since it isn't being used and is failing to start up after deploy (config.py can't find PROJECT_ID)
+  # - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+  #   args: ["./deployment/deploy-http.sh"]
+  #   waitFor: ["-"]
+  #   env:
+  #     - 'PROJECT_ID=$PROJECT_ID'
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     args: ["./deployment/deploy-pubsub.sh"]
     waitFor: ["-"]
