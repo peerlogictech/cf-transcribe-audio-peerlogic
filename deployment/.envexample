@@ -1,5 +1,5 @@
-BUCKET_OUTPUT_AUDIO_PCM_ENCODED=test-peerlogic-dev-api-audio-pcm-encoded-{your_name_here}-local
-BUCKET_OUTPUT_RAW_EXTRACT=test-peerlogic-dev-api-speech-to-text-peerlogic-raw-extract-{your_name_here}-local
+BUCKET_OUTPUT_AUDIO_PCM_ENCODED=test-peerlogic-api-dev-audio-pcm-encoded-{your_name_here}-local
+BUCKET_OUTPUT_RAW_EXTRACT=test-peerlogic-api-dev-speech-to-text-peerlogic-raw-extract-{your_name_here}-local
 
 PEERLOGIC_API_URL=http://localhost:8000/api
 PEERLOGIC_API_USERNAME=
