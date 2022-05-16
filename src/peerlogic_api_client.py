@@ -324,6 +324,18 @@ class PeerlogicAPIClient(APIClient):
         response = session.patch(url=url, files=files)
         return response
 
+    @extract_and_transform(transform_to_bytes)
+    @requires_auth
+    def get_call_audio_partial_wav_file(self, call_id: str, call_partial_id: str, call_audio_partial_id: str, session: requests.Session = None) -> requests.Response:
+        if not session:
+            session = self.get_session()
+
+        call_audio_data = self.get_call_audio_partial(call_id, call_partial_id, call_audio_partial_id)
+        url: str = call_audio_data.get("signed_url")
+
+        response = session.get(url=url)
+        return response
+
     @requires_auth
     def get_call_detail(self, call_id: str, session: requests.Session = None) -> requests.Response:
         url = self.get_call_url(call_id)
