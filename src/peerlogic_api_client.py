@@ -272,20 +272,35 @@ class PeerlogicAPIClient(APIClient):
 
     @requires_auth
     def get_call_audio_partial_list(self, call_id: str, call_partial_id: str, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_audio_partial_url(call_id, call_partial_id)
+
         if not session:
             session = self.get_session()
 
-        url = self.get_call_audio_partial_url(call_id, call_partial_id)
+        response = session.get(url=url)
+        return response
 
-        try:
-            response = session.get(url=url)
-            response.raise_for_status()
+    @requires_auth
+    def get_call_audio_partial(self, call_id: str, call_partial_id: str, call_audio_partial_id: str, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_audio_partial_url(call_id, call_partial_id, call_audio_partial_id)
 
-            return response
-        except Exception as e:
-            msg = f"Problem occurred getting a call audio partial at '{url}'."
-            log.critical(msg, e)
-            raise Exception(msg)
+        if not session:
+            session = self.get_session()
+
+        response = session.get(url=url)
+        return response
+
+    @extract_and_transform(transform_to_bytes)
+    @requires_auth
+    def get_call_audio_partial_wav_file(self, call_id: str, call_partial_id: str, call_audio_partial_id: str, session: requests.Session = None) -> requests.Response:
+        call_audio_data: requests.Response = self.get_call_audio_partial(call_id, call_partial_id, call_audio_partial_id)
+        url: str = call_audio_data.json().get("signed_url")
+
+        if not session:
+            session = self.get_session()
+        response = session.get(url=url)
+
+        return response
 
     @requires_auth
     def initialize_call_audio_partial(self, call_id, call_partial_id, mime_type="audio/WAV", session: requests.Session = None) -> requests.Response:
