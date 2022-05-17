@@ -83,10 +83,6 @@ def transcribe_audio_peerlogic_pubsub(event, context):
         log.info(f"Peerlogic API Client does not currently exist, logging in.")
         peerlogic_api_client = PeerlogicAPIClient()
 
-    # for some reason this is not getting called and causing issues locally.
-    # TODO: move back to above if statement
-    peerlogic_api_client.login()
-
     # Get Wavfile
     log.info(f"Getting the call audio partials for audio_partial_id='{audio_partial_id}'")
     call_audio_partial_file = peerlogic_api_client.get_call_audio_partial_wav_file(call_id, partial_id, audio_partial_id)
