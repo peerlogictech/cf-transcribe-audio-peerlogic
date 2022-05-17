@@ -1,6 +1,6 @@
 import base64
 from typing import Optional
-from config import BUCKET_AUDIO_PCM_ENCODED, BUCKET_GOOGLE_SPEECH_TO_TEXT_RAW_EXTRACT
+from config import BUCKET_OUTPUT_AUDIO_PCM_ENCODED, BUCKET_OUTPUT_RAW_EXTRACT
 import json
 import logging
 
@@ -35,7 +35,7 @@ class AudioReady(BaseModel):
     audio_partial_id: str
 
 
-def transcribe_audio_http(request):
+def transcribe_audio_peerlogic_http(request):
     """HTTP Cloud Function.
     Args:
         request (flask.Request): The request object.
@@ -51,7 +51,7 @@ def transcribe_audio_http(request):
     return f"Hello, {subject}!"
 
 
-def transcribe_audio_pubsub(event, context):
+def transcribe_audio_peerlogic_pubsub(event, context):
     """Background Cloud Function to be triggered by Pub/Sub.
     Args:
          event (dict):  The dictionary with data specific to this type of
@@ -89,7 +89,7 @@ def transcribe_audio_pubsub(event, context):
 
     # Get Wavfile
     log.info(f"Getting the call audio partials for audio_partial_id='{audio_partial_id}'")
-    call_audio_partial_file = peerlogic_api_client.get_call_audio_partial_wavfile(call_id, partial_id, audio_partial_id)
+    call_audio_partial_file = peerlogic_api_client.get_call_audio_partial_wav_file(call_id, partial_id, audio_partial_id)
     log.info(f"Got the call audio partial wavefile in memory for call_id='{call_id}' partial_id='{partial_id}' audio_partial_id='{audio_partial_id}")
 
     log.info(f"Saving file to tmp directory")
@@ -107,19 +107,20 @@ def transcribe_audio_pubsub(event, context):
     log.info(f"Got sample rate of wavefile to pass as Speech To Text arguments")
 
     # Processing:
-    log.info("Converting in memory wavefile to pcm")
-    pcm_file_path, _ = wav_codec_to_pcm_s16le(downloaded_path)
-    log.info("Converted in memory wavefile to pcm")
+    log.info(f"NOT YET IMPLEMENTED. DEVELOPMENT IN PROGRESS. THIS IS FINE. DO NOT BE ALARMED.")
+    # log.info("Converting in memory wavefile to pcm")
+    # pcm_file_path, _ = wav_codec_to_pcm_s16le(downloaded_path)
+    # log.info("Converted in memory wavefile to pcm")
 
-    # PCM is still wav extension: https://trac.ffmpeg.org/wiki/audio%20types
-    log.info(f"Saving local pcm encoded file {partial_id}.wav to bucket {BUCKET_AUDIO_PCM_ENCODED}")
-    pcm_file_gs_uri = upload_file_to_bucket(f"{partial_id}.wav", pcm_file_path, bucket_name=BUCKET_AUDIO_PCM_ENCODED)
-    log.info(f"Saved local pcm encoded file to bucket {BUCKET_AUDIO_PCM_ENCODED}")
+    # # PCM is still wav extension: https://trac.ffmpeg.org/wiki/audio%20types
+    # log.info(f"Saving local pcm encoded file {partial_id}.wav to bucket {BUCKET_OUTPUT_AUDIO_PCM_ENCODED}")
+    # pcm_file_gs_uri = upload_file_to_bucket(f"{partial_id}.wav", pcm_file_path, bucket_name=BUCKET_OUTPUT_AUDIO_PCM_ENCODED)
+    # log.info(f"Saved local pcm encoded file to bucket {BUCKET_OUTPUT_AUDIO_PCM_ENCODED}")
 
-    # Transcribe and specify destination for output using call partial id
-    destination_uri = f"gs://{BUCKET_GOOGLE_SPEECH_TO_TEXT_RAW_EXTRACT}/{call_id}-{partial_id}-{audio_partial_id}.json"
-    log.info(f"Beginning long-running transcription of pcm encoded wave file using Google Speech to Text.")
-    transcribe_model_selection(pcm_file_gs_uri, destination_uri, sample_rate_hertz=sample_rate)
-    # TODO: See if timeouts mean failure and this will reprocess from dead-letter queue
-    # Otherwise, figure out how to not make this blocking
-    log.info(f"Finished calling long-running transcription of pcm encoded file using Google Speech to Text with destination uri: {destination_uri}")
+    # # Transcribe and specify destination for output using call partial id
+    # destination_uri = f"gs://{BUCKET_OUTPUT_RAW_EXTRACT}/{call_id}-{partial_id}-{audio_partial_id}.json"
+    # log.info(f"Beginning long-running transcription of pcm encoded wave file using Google Speech to Text.")
+    # transcribe_model_selection(pcm_file_gs_uri, destination_uri, sample_rate_hertz=sample_rate)
+    # # TODO: See if timeouts mean failure and this will reprocess from dead-letter queue
+    # # Otherwise, figure out how to not make this blocking
+    # log.info(f"Finished calling long-running transcription of pcm encoded file using Google Speech to Text with destination uri: {destination_uri}")

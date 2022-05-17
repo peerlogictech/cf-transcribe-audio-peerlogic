@@ -1,50 +1,103 @@
-from datetime import datetime
+from datetime import (
+    datetime,
+)
 import io
 import logging
 import os
 from typing import (
     Callable,
     Dict,
+    List,
 )
 
-from pydantic import BaseModel
+from pydantic import parse_obj_as
 import requests
 import requests.compat
-from urllib.parse import urljoin
+from urllib3.response import HTTPResponse
 
-from api_client import APIClient
-from netsapiens_api_client import netsapiens_auth_token_from_response
+from api_client import (
+    APIClient,
+    APIClientAuthenticationError,
+    extract_and_transform,
+    requires_auth,
+)
+from peerlogic_api_models import (
+    CallOutcome,
+    CallOutcomeReason,
+    CallPurpose,
+    CallTranscript,
+    NetsapiensAPICredentials,
+    TelecomCallerNameInfo,
+)
+from netsapiens_api_client import NetsapiensAuthToken, NetsapiensRefreshToken
+
 
 log = logging.getLogger(__name__)
 
 
-class NetsapiensAPICredentials(BaseModel):
-    id: str
-    created_at: datetime
-    modified_by: str
-    modified_at: datetime
-    voip_provider: str
-    api_url: str
+def transform_to_bytes(response: requests.Response) -> bytes:
+    return response.content
 
-    client_id: str
-    client_secret: str
-    username: str
-    password: str
-    active: bool
+
+def transform_to_call_transcript(response: requests.Response) -> List[CallTranscript]:
+    data = response.json()
+    transcript_count = data.get("count")
+    transcript_list = data.get("results")
+
+    return parse_obj_as(List[CallTranscript], transcript_list)
+
+
+def transform_to_call_outcome(response: requests.Response) -> CallOutcome:
+    return CallOutcome(**response.json())
+
+
+def transform_to_call_outcome_reason(response: requests.Response) -> CallOutcomeReason:
+    return CallOutcomeReason(**response.json())
+
+
+def transform_to_call_purpose(response: requests.Response) -> CallPurpose:
+    return CallPurpose(**response.json())
+
+
+def transform_to_netsapiens_api_credentials(response: requests.Response) -> NetsapiensAPICredentials:
+    data = response.json()
+    credentials_count = data.get("count")
+    credentials_list = data.get("results")
+    if credentials_count == 0:
+        raise Exception(f"No active credentials found from url='{response.request.url}'")
+
+    return NetsapiensAPICredentials(**credentials_list[0])
+
+
+def transform_to_telecom_caller_name_info(response: requests.Response) -> TelecomCallerNameInfo:
+    return TelecomCallerNameInfo(**response.json())
 
 
 class PeerlogicAPIClient(APIClient):
-    def __init__(self, peerlogic_api_url: str = None) -> None:
+    def __init__(self, peerlogic_api_url: str = None, username: str = None, password: str = None) -> None:
         # fallback to well-known environment variables
         if not peerlogic_api_url:
             peerlogic_api_url = os.getenv("PEERLOGIC_API_URL")
 
         super().__init__(peerlogic_api_url)
 
+        # fallback to well-known environment variables
+        if not username:
+            self._username = os.getenv("PEERLOGIC_API_USERNAME")
+
+        if not password:
+            self._password = os.getenv("PEERLOGIC_API_PASSWORD")
+
         # create base urls
-        root_api_url = self.get_root_api_url()
-        self._peerlogic_auth_url = urljoin(root_api_url, "login")
-        self._peerlogic_netsapiens_api_credentials_url = urljoin(root_api_url, "integrations/netsapiens/admin/api-credentials")
+        root_api_url = self.root_api_url
+        self._peerlogic_auth_url = requests.compat.urljoin(root_api_url, "login")
+        self._peerlogic_calls_url = requests.compat.urljoin(root_api_url, "calls/")
+        self._peerlogic_netsapiens_api_credentials_url = requests.compat.urljoin(root_api_url, "integrations/netsapiens/admin/api-credentials")
+        self._peerlogic_api_telecom_caller_name_info_url = requests.compat.urljoin(root_api_url, "/api/telecom-caller-name-info/")
+
+    #
+    # URL creators
+    #
 
     def get_auth_url(self) -> str:
         return self._peerlogic_auth_url
@@ -52,24 +105,88 @@ class PeerlogicAPIClient(APIClient):
     def get_netsapiens_api_credentials_url(self) -> str:
         return self._peerlogic_netsapiens_api_credentials_url
 
+    def get_call_url(self, call_id: str = "") -> str:
+        """Returns url for a particular resource if call id is given, otherwise gives list/create endpoint"""
+        if call_id:
+            call_id = f"{call_id}/"  # patches need trailing slashes
+        return requests.compat.urljoin(self._peerlogic_calls_url, call_id)
+
+    def get_call_partials_url(self, call_id: str = "") -> str:
+        call_url = self.get_call_url(call_id)
+        return requests.compat.urljoin(call_url, "partials/")
+
+    def get_call_purposes_url(self, call_id: str = "") -> str:
+        call_url = self.get_call_url(call_id)
+        return requests.compat.urljoin(call_url, "purposes/")
+
+    def get_call_outcomes_url(self, call_id: str = "") -> str:
+        call_url = self.get_call_url(call_id)
+        return requests.compat.urljoin(call_url, "outcomes/")
+
+    def get_call_outcome_reasons_url(self, call_id: str = "") -> str:
+        call_url = self.get_call_url(call_id)
+        return requests.compat.urljoin(call_url, "outcome-reasons/")
+
+    def get_call_procedure_discussed_url(self, call_id: str = "") -> str:
+        call_url = self.get_call_url(call_id)
+        return requests.compat.urljoin(call_url, "discussed-procedures/")
+
+    def get_call_audio_url(self, call_id, call_audio_id: str = None) -> str:
+        """Returns url for a particular resource if call id is given, otherwise gives list/create endpoint"""
+        if call_audio_id:  # url is for a particular resource
+            return requests.compat.urljoin(self.get_call_url(call_id), f"audio/{call_audio_id}/")
+        return requests.compat.urljoin(self.get_call_url(call_id), f"audio/")
+
+    def get_call_partial_url(self, call_id: str, call_partial_id: str = None) -> str:
+        """Returns url for a particular resource if call partial id is given, otherwise gives list/create endpoint"""
+        if call_partial_id:  # url is for a particular resource
+            return requests.compat.urljoin(self.root_api_url, f"/api/calls/{call_id}/partials/{call_partial_id}/")
+        return requests.compat.urljoin(self.root_api_url, f"/api/calls/{call_id}/partials/")
+
+    def get_call_audio_partial_url(self, call_id: str, call_partial_id: str, call_audio_partial_id: str = None) -> str:
+        """Returns url for a particular resource if call audio partial id is given, otherwise gives list/create endpoint"""
+        if call_audio_partial_id:  # url is for a particular resource
+            return requests.compat.urljoin(self.root_api_url, f"/api/calls/{call_id}/partials/{call_partial_id}/audio/{call_audio_partial_id}/")
+        return requests.compat.urljoin(self.root_api_url, f"/api/calls/{call_id}/partials/{call_partial_id}/audio/")
+
+    def get_call_audio_partial_file_patch_url(self, call_id: str, call_partial_id: str, call_audio_partial_id: str = None) -> str:
+        return requests.compat.urljoin(self.get_call_audio_partial_url(call_id, call_partial_id, call_audio_partial_id), "upload_file/")
+
+    def get_call_transcripts_url(self, call_id: str) -> str:
+        call_url = self.get_call_url(call_id)
+        return requests.compat.urljoin(call_url, "transcripts/")
+
+    def get_call_transcript_partial_url(self, call_id: str, call_partial_id: str, call_transcript_partial_id: str = "") -> str:
+        """Returns url for a particular resource if call audio partial id is given, otherwise gives list/create endpoint"""
+        if call_transcript_partial_id:  # url is for a particular resource
+            call_transcript_partial_id = f"{call_transcript_partial_id}/"  # patches need trailing slashes
+        return requests.compat.urljoin(self.get_call_partial_url(call_id, call_partial_id), f"transcripts/{call_transcript_partial_id}")
+
+    def get_netsapiens_api_credentials_url(self) -> str:
+        return self._peerlogic_netsapiens_api_credentials_url
+
+    #
+    # Login and session handling
+    #
+
     def get_session(self) -> requests.Session:
         s = self._session
         if not s:
-            raise TypeError("Session is None. Must call the login() method before calling any other api accessor.")
+            raise APIClientAuthenticationError("Session is None. Must call the login() method before calling any other api accessor.")
 
         return s
 
     def login(self, username: str = None, password: str = None, request: Callable = requests.request) -> requests.Response:
-        """
-        Perform a login, grabbing an auth token.
-        """
+        """Perform a login, grabbing an auth token."""
         try:
-            # fallback to well-known environment variables
-            if not username:
-                username = os.getenv("PEERLOGIC_API_USERNAME")
+            # allow one-time overrides when calling login
+            if username is None:
+                username = self._username
 
-            if not password:
-                password = os.getenv("PEERLOGIC_API_PASSWORD")
+            if password is None:
+                password = self._password
+
+            response = None  # define for proper logging as needed
 
             headers = {"Content-Type": "application/x-www-form-urlencoded"}  # explicitly set even though it's not necessary
             payload = {"username": username, "password": password}
@@ -80,116 +197,282 @@ class PeerlogicAPIClient(APIClient):
             auth_response.raise_for_status()
 
             # parse response
-            self._auth_token = netsapiens_auth_token_from_response(auth_response)
+            self._auth_token = NetsapiensAuthToken.parse_obj(auth_response.json())
 
             # Session and Authorization header construction
-            access_token = self._auth_token.get_access_token()
+            access_token = self._auth_token.access_token
             self._session = requests.Session()
             self._session.headers.update({"Authorization": f"Bearer {access_token}"})
 
             return auth_response
         except Exception as e:
             msg = f"Problem occurred authenticating to url '{url}'."
-            log.exception(msg, e)
-            raise Exception(msg)
+            if response is not None and response.text:
+                msg = f"{msg}. Response text: '{response.text}'"
+            raise Exception(msg) from e
 
-    def get_netsapiens_api_credentials(self, voip_provider_id, session: requests.Session = None) -> NetsapiensAPICredentials:
+    def refresh_token(self, refresh_token: str = None, request: Callable = requests.request) -> requests.Response:
+        try:
+            if refresh_token is None:
+                refresh_token = self._auth_token.refresh_token
+
+            response = None  # define for proper logging as needed
+
+            headers = {"Content-Type": "application/x-www-form-urlencoded"}  # explicitly set even though it's not necessary
+            payload = {"grant_type": "refresh_token", "refresh_token": refresh_token}
+
+            url = self.get_auth_url()
+            log.info(f"Re-authing into url='{url}'")
+            auth_response = request("POST", url, headers=headers, data=payload)
+            auth_response.raise_for_status()
+
+            # parse response
+            self._auth_token = NetsapiensRefreshToken.parse_obj(auth_response.json())  # be aware this is different, should we merge the dicts?
+
+            # Session and Authorization header construction
+            access_token = self._auth_token.access_token
+            self._session = requests.Session()
+            self._session.headers.update({"Authorization": f"Bearer {access_token}"})
+
+            return auth_response
+        except Exception as e:
+            msg = f"Problem occurred authenticating to url '{url}'."
+            if response is not None and response.text:
+                msg = f"{msg}. Response text: '{response.text}'"
+            raise Exception(msg) from e
+
+    @extract_and_transform(transform_to_netsapiens_api_credentials)
+    @requires_auth
+    def get_netsapiens_api_credentials(self, voip_provider_id: str, session: requests.Session = None) -> requests.Response:
         """
         Perform a login, grabbing an auth token.
         This works for both Netsapiens and peerlogic.
         """
-        try:
-            url = self._peerlogic_netsapiens_api_credentials_url
-            log.info(f"Retrieving credentials for voip_provider_id='{voip_provider_id}' from url='{url}'")
+        url = self.get_netsapiens_api_credentials_url()
+        log.info(f"Retrieving netsapiens_api_credentials for voip_provider_id='{voip_provider_id}' from url='{url}'")
 
-            if not session:
-                session = self.get_session()
-
-            response = session.get(url, params={"voip_provider_id": voip_provider_id, "active": True})
-            response.raise_for_status()
-
-            data = response.json()
-            credentials_count = data.get("count")
-            credentials_list = data.get("results")
-            if credentials_count == 0:
-                raise Exception(f"No active credentials found for voip_provider_id='{voip_provider_id}' from url='{url}'")
-
-            return NetsapiensAPICredentials(**credentials_list[0])
-        except Exception as e:
-            msg = f"Problem occurred retreiving credentials for voip_provider_id='{voip_provider_id}' from url='{url}'"
-            log.exception(msg, e)
-            raise Exception(msg)
-
-    def get_call_partial_url(self, call_id: str, call_partial_id: str = None) -> str:
-        """Returns url for a particular resource if call partial id is given, otherwise gives list/create endpoint"""
-        if call_partial_id:  # url is for a particular resource
-            return urljoin(self.get_root_api_url(), f"/api/calls/{call_id}/partials/{call_partial_id}/")
-        return urljoin(self.get_root_api_url(), f"/api/calls/{call_id}/partials/")
-
-    def get_call_audio_partial_url(self, call_id: str, call_partial_id: str, call_audio_partial_id: str = None) -> str:
-        """Returns url for a particular resource if call audio partial id is given, otherwise gives list/create endpoint"""
-        if call_audio_partial_id:  # url is for a particular resource
-            return urljoin(self.get_root_api_url(), f"/api/calls/{call_id}/partials/{call_partial_id}/audio/{call_audio_partial_id}/")
-        return urljoin(self.get_root_api_url(), f"/api/calls/{call_id}/partials/{call_partial_id}/audio/")
-
-    def get_call_transcript_partial_url(self, call_id: str, call_partial_id: str, call_transcript_partial_id: str = None) -> str:
-        """Returns url for a particular resource if call audio partial id is given, otherwise gives list/create endpoint"""
-        if call_transcript_partial_id:  # url is for a particular resource
-            return urljoin(self.get_root_api_url(), f"/api/calls/{call_id}/partials/{call_partial_id}/transcripts/{call_transcript_partial_id}/")
-        return urljoin(self.get_root_api_url(), f"/api/calls/{call_id}/partials/{call_partial_id}/transcripts/")
-
-    def get_call_audio_partial(self, call_id: str, call_partial_id: str, call_audio_partial_id: str, session: requests.Session = None) -> Dict:
         if not session:
             session = self.get_session()
 
-        try:
-            url = self.get_call_audio_partial_url(call_id, call_partial_id, call_audio_partial_id)
-            response = session.get(url=url)
-            response.raise_for_status()
+        response = session.get(url, params={"voip_provider_id": voip_provider_id, "active": True})
+        return response
 
-            return response.json()
-        except Exception as e:
-            msg = f"Problem occurred getting an audio partial at '{url}'."
-            log.exception(msg, e)
-            raise Exception(msg)
+    @requires_auth
+    def initialize_call_partial(
+        self, call_id: str, time_interaction_started: datetime, time_interaction_ended: datetime, session: requests.Session = None
+    ) -> requests.Response:
+        url = self.get_call_partial_url(call_id)
+        data = {"call": call_id, "time_interaction_started": time_interaction_started, "time_interaction_ended": time_interaction_ended}
 
-    def get_call_audio_partial_wavfile(self, call_id: str, call_partial_id: str, call_audio_partial_id: str, session: requests.Session = None) -> bytes:
         if not session:
             session = self.get_session()
 
-        call_audio_data = self.get_call_audio_partial(call_id, call_partial_id, call_audio_partial_id)
+        response = session.post(url=url, data=data)
+        return response
+
+    @requires_auth
+    def get_call_audio_partial_list(self, call_id: str, call_partial_id: str, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_audio_partial_url(call_id, call_partial_id)
+
+        if not session:
+            session = self.get_session()
+
+        response = session.get(url=url)
+        return response
+
+    @requires_auth
+    def get_call_audio_partial(self, call_id: str, call_partial_id: str, call_audio_partial_id: str, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_audio_partial_url(call_id, call_partial_id, call_audio_partial_id)
+
+        if not session:
+            session = self.get_session()
+
+        response = session.get(url=url)
+        return response
+
+    @extract_and_transform(transform_to_bytes)
+    @requires_auth
+    def get_call_audio_partial_wav_file(self, call_id: str, call_partial_id: str, call_audio_partial_id: str, session: requests.Session = None) -> requests.Response:
+        call_audio_data: requests.Response = self.get_call_audio_partial(call_id, call_partial_id, call_audio_partial_id)
+        url: str = call_audio_data.json().get("signed_url")
+
+        if not session:
+            session = self.get_session()
+        response = session.get(url=url)
+
+        return response
+
+    @requires_auth
+    def initialize_call_audio_partial(self, call_id, call_partial_id, mime_type="audio/WAV", session: requests.Session = None) -> requests.Response:
+        url = self.get_call_audio_partial_url(call_id, call_partial_id)
+        data = {"mime_type": mime_type, "call_partial": call_partial_id}
+
+        if not session:
+            session = self.get_session()
+
+        response = session.post(url=url, data=data)
+        return response
+
+    @requires_auth
+    def patch_call_audio_partial(
+        self, call_id, call_partial_id, call_audio_partial_id: str, changes: Dict, session: requests.Session = None
+    ) -> requests.Response:
+        url = self.get_call_audio_partial_url(call_id, call_partial_id, call_audio_partial_id)
+        data = changes
+
+        if not session:
+            session = self.get_session()
+
+        response = session.patch(url=url, data=data)
+        return response
+
+    @requires_auth
+    def finalize_call_audio_partial(
+        self, call_id: str, call_partial_id: str, call_audio_partial_id, file: HTTPResponse, mime_type: str = "audio/WAV", session: requests.Session = None
+    ) -> requests.Response:
+        url = self.get_call_audio_partial_file_patch_url(call_id, call_partial_id, call_audio_partial_id)
+        files = {mime_type: file}
+
+        if not session:
+            session = self.get_session()
+
+        response = session.patch(url=url, files=files)
+        return response
+
+    @requires_auth
+    def get_call_detail(self, call_id: str, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_url(call_id)
+
+        if not session:
+            session = self.get_session()
+
+        response = session.get(url=url)
+        return response
+
+    @requires_auth
+    def get_call_audio(self, call_id: str, call_audio_id: str, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_audio_url(call_id, call_audio_id)
+
+        if not session:
+            session = self.get_session()
+
+        response = session.get(url=url)
+        return response
+
+    @extract_and_transform(transform_to_bytes)
+    @requires_auth
+    def get_call_audio_wave_file(self, call_id: str, call_audio_id: str, session: requests.Session = None) -> requests.Response:
+        call_audio_data = self.get_call_audio(call_id, call_audio_id).json()
         url: str = call_audio_data.get("signed_url")
 
-        try:
-            response = requests.get(url=url)
-            response.raise_for_status()
-
-            return response.content
-        except Exception as e:
-            msg = f"Problem occurred getting wavefile for '{url}'."
-            log.exception(msg, e)
-            raise Exception(msg)
-
-    def initialize_call_transcript_partial(
-        self, call_id: str, call_partial_id: str, transcript_type: str, mime_type: str = "text/plain", session: requests.Session = None
-    ) -> Dict:
         if not session:
             session = self.get_session()
 
-        try:
-            url = self.get_call_transcript_partial_url(call_id, call_partial_id)
-            data = {"mime_type": mime_type, "call_partial": call_partial_id, "transcript_type": transcript_type}
+        response = session.get(url=url)
+        return response
 
-            response = session.post(url=url, data=data)
-            response.raise_for_status()
+    @extract_and_transform(transform_to_telecom_caller_name_info)
+    @requires_auth
+    def get_telecom_caller_name_info(self, phone_number: str, session: requests.Session = None) -> requests.Response:
+        # generate call with phone_number appended
+        url = requests.compat.urljoin(self._peerlogic_api_telecom_caller_name_info_url, phone_number)
 
-            return response.json()
-        except Exception as e:
-            msg = f"Problem occurred creating a new transcript partial for '{url}'"
-            response_json = response.json()
-            log.exception(f"{msg}. Response was {response_json}. Exception was {e}.")
-            raise Exception(msg)
+        if not session:
+            session = self.get_session()
 
+        response = session.get(url=url)
+        return response
+
+    @extract_and_transform(transform_to_call_purpose)
+    @requires_auth
+    def create_call_purpose(self, call_purpose: CallPurpose, session: requests.Session = None) -> requests.Response:
+        call_id = call_purpose.call
+        url = self.get_call_purposes_url(call_id=call_id)
+
+        if not session:
+            session = self.get_session()
+
+        response = session.post(url=url, data=call_purpose.dict())
+        return response
+
+    @extract_and_transform(transform_to_call_outcome)
+    @requires_auth
+    def create_call_outcome(self, call_id: str, call_outcome: CallOutcome, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_outcomes_url(call_id=call_id)
+
+        if not session:
+            session = self.get_session()
+
+        response = session.post(url=url, data=call_outcome.dict())
+        return response
+
+    @extract_and_transform(transform_to_call_outcome_reason)
+    @requires_auth
+    def create_call_outcome_reason(self, call_id: str, call_outcome_reason: CallOutcomeReason, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_outcome_reasons_url(call_id=call_id)
+
+        if not session:
+            session = self.get_session()
+
+        response = session.post(url=url, data=call_outcome_reason.dict())
+        return response
+
+    @requires_auth
+    def create_procedure_discussed(self, call_id: str, keyword: str, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_procedure_discussed_url(call_id=call_id)
+
+        if not session:
+            session = self.get_session()
+
+        procedure_discussed_data = {
+            "call": call_id,
+            "keyword": keyword,
+        }
+        response = session.post(url=url, data=procedure_discussed_data)
+        return response
+
+    @extract_and_transform(transform_to_call_transcript)
+    @requires_auth
+    def get_transcripts_for_call(self, call_id: str, filter_params: Dict = None, session: requests.Session = None) -> requests.Response:
+        url = self.get_call_transcripts_url(call_id=call_id)
+
+        if not session:
+            session = self.get_session()
+
+        if not filter_params:
+            filter_params = {}
+
+        response = session.get(url=url, params=filter_params)
+        return response
+
+    def get_transcripts_with_text_for_call(self, call_id: str, filter_params: Dict = None, session: requests.Session = None) -> List[CallTranscript]:
+        transcripts: List[CallTranscript] = self.get_transcripts_for_call(call_id=call_id, filter_params=filter_params, session=session)
+
+        if not session:
+            session = self.get_session()
+
+        for transcript in transcripts:
+            signed_url = transcript.signed_url
+            text = session.get(signed_url).text
+            transcript.text = text
+
+        return transcripts
+
+    @requires_auth
+    def initialize_call_transcript_partial(
+        self, call_id: str, call_partial_id: str, transcript_type: str, mime_type: str = "text/plain", session: requests.Session = None
+    ) -> requests.Response:
+    
+        if not session:
+            session = self.get_session()
+
+        url = self.get_call_transcript_partial_url(call_id, call_partial_id)
+        data = {"mime_type": mime_type, "call_partial": call_partial_id, "transcript_type": transcript_type}
+
+        response = session.post(url=url, data=data)
+        return response
+
+    @requires_auth
     def finalize_call_transcript_partial(
         self,
         id: str,
@@ -198,23 +481,17 @@ class PeerlogicAPIClient(APIClient):
         transcript_string: str,
         mime_type: str = "text/plain",
         session: requests.Session = None,
-    ) -> Dict:
+    ) -> requests.Response:
+        
         if not session:
             session = self.get_session()
 
+        url = self.get_call_transcript_partial_url(call_id, call_partial_id, id)
         file = io.StringIO(transcript_string)
+        files = {mime_type: file}
 
-        try:
-            url = self.get_call_transcript_partial_url(call_id, call_partial_id, id)
-            files = {mime_type: file}
-            response = session.patch(url=url, files=files)
-            response.raise_for_status()
-
-            return response.json()
-        except Exception as e:
-            msg = f"Problem occurred finalizing the transcript partial for '{url}'."
-            log.exception(msg, e)
-            raise Exception(msg)
+        response = session.patch(url=url, files=files)
+        return response
 
 
 #
@@ -230,5 +507,42 @@ if __name__ == "__main__":
 
     # create client and login
     peerlogic_api = PeerlogicAPIClient()
+    call_id = "DSCJj2V3KAGeVhVow3C9yd"
+    call_purpose: CallPurpose = peerlogic_api.create_call_purpose(
+        call_purpose=CallPurpose(call=call_id, call_purpose_type="billing", raw_call_purpose_model_run_id="blah")
+    )
+    print(call_purpose)
+    call_outcome = peerlogic_api.create_call_outcome(
+        call_id=call_id, call_outcome=CallOutcome(call_purpose=call_purpose.id, call_outcome_type="failure", raw_call_outcome_model_run_id="blah2")
+    )
+    print(call_outcome)
+    call_outcome_reason = peerlogic_api.create_call_outcome_reason(
+        call_id=call_id,
+        call_outcome_reason=CallOutcomeReason(
+            call_outcome=call_outcome.id, call_outcome_reason_type="call_interrupted", raw_call_outcome_reason_model_run_id="ladhfa"
+        ),
+    )
+    print(call_outcome_reason)
+
+    call_procedure_discussed = peerlogic_api.create_procedure_discussed(call_id=call_id, keyword="exam")
+    print(call_procedure_discussed.json())
+
     peerlogic_api.login()
-    print(peerlogic_api._auth_token.get_access_token())
+    log.info(peerlogic_api._auth_token.access_token)
+
+    # test format with non alpha characters
+    caller_name_info = peerlogic_api.get_telecom_caller_name_info("1 (800) 554-1907")  # delta dental
+    print(caller_name_info)
+    print(caller_name_info.is_business())
+    print(caller_name_info.is_consumer_carrier_type())
+
+    # test expected e164 format
+    caller_name_info = peerlogic_api.get_telecom_caller_name_info("+18005541907")  # delta dental
+    print(caller_name_info)
+    print(caller_name_info.is_business())
+    print(caller_name_info.is_consumer_carrier_type())
+
+    caller_name_info = peerlogic_api.get_telecom_caller_name_info("8005541907")  # delta dental
+    print(caller_name_info)
+    print(caller_name_info.is_business())
+    print(caller_name_info.is_consumer_carrier_type())

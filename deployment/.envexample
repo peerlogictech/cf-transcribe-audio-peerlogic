@@ -1,15 +1,15 @@
-BUCKET_AUDIO_PCM_ENCODED=peerlogic-audio-pcm-encoded-your-name-here
-BUCKET_GOOGLE_SPEECH_TO_TEXT_RAW_EXTRACT=peerlogic-goog-speech-to-text-raw-extract-your-name-here
+BUCKET_OUTPUT_AUDIO_PCM_ENCODED=test-peerlogic-api-dev-audio-pcm-encoded-{your_name_here}-local
+BUCKET_OUTPUT_RAW_EXTRACT=test-peerlogic-api-dev-speech-to-text-peerlogic-raw-extract-{your_name_here}-local
 
 PEERLOGIC_API_URL=http://localhost:8000/api
 PEERLOGIC_API_USERNAME=
 PEERLOGIC_API_PASSWORD=
 
-FUNCTION_NAME_HTTP="transcribe_audio_http"
-FUNCTION_PORT_HTTP="4001"
+FUNCTION_NAME_HTTP=transcribe_audio_peerlogic_http
+FUNCTION_PORT_HTTP=4001
 
-FUNCTION_NAME_PUBSUB="transcribe_audio_pubsub"
-FUNCTION_PORT_PUBSUB="5001"
+FUNCTION_NAME_PUBSUB=transcribe_audio_peerlogic_pubsub
+FUNCTION_PORT_PUBSUB=5001
 
-PROJECT_ID="peerlogic-api-dev"
-PUBSUB_TOPIC="dev-transcribe_audio-your-name-here"
+PROJECT_ID=peerlogic-api-dev
+PUBSUB_TOPIC=test-dev-call_audio_partial_saved-{your_name_here}-local
